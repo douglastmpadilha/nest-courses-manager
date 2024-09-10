@@ -10,7 +10,7 @@ import {
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { UsersService } from './users.service';
-import { User } from '../entities/user.entity';
+import { User } from '@prisma/client';
 
 @Controller('users')
 @UseGuards(JwtAuthGuard)
@@ -19,12 +19,14 @@ export class UsersController {
 
   @Post()
   create(
-    @Body() createUserDto: { username: string; password: string },
+    @Body()
+    createUserDto: {
+      username: string;
+      password: string;
+      email: string;
+    },
   ): Promise<User> {
-    return this.usersService.create(
-      createUserDto.username,
-      createUserDto.password,
-    );
+    return this.usersService.create(createUserDto);
   }
 
   @Get()
@@ -34,23 +36,19 @@ export class UsersController {
 
   @Get(':id')
   findOne(@Param('id') id: string): Promise<User> {
-    return this.usersService.findOne(+id);
+    return this.usersService.findOne(id);
   }
 
   @Put(':id')
   update(
     @Param('id') id: string,
-    @Body() updateUserDto: { username: string; isActive: boolean },
+    @Body() updateUserDto: { username?: string; isActive?: boolean },
   ): Promise<User> {
-    return this.usersService.update(
-      +id,
-      updateUserDto.username,
-      updateUserDto.isActive,
-    );
+    return this.usersService.update(id, updateUserDto);
   }
 
   @Delete(':id')
   remove(@Param('id') id: string): Promise<void> {
-    return this.usersService.remove(+id);
+    return this.usersService.remove(id);
   }
 }

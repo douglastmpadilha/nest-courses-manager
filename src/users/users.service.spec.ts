@@ -1,8 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { getRepositoryToken } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
 import { UsersService } from './users.service';
-import { User } from '../entities/user.entity';
+import { PrismaService } from '../prisma/prisma.service';
 import { NotFoundException } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 
@@ -10,12 +8,13 @@ jest.mock('bcrypt');
 
 describe('UsersService', () => {
   let service: UsersService;
-  let userRepository: Repository<User>;
+  let prismaService: PrismaService;
 
-  const mockUserRepository = {
-    create: jest.fn(),
-    save: jest.fn(),
-    findOne: jest.fn(),
+  const mockPrismaService = {
+    user: {
+      create: jest.fn(),
+      findUnique: jest.fn(),
+    },
   };
 
   beforeEach(async () => {
@@ -23,14 +22,14 @@ describe('UsersService', () => {
       providers: [
         UsersService,
         {
-          provide: getRepositoryToken(User),
-          useValue: mockUserRepository,
+          provide: PrismaService,
+          useValue: mockPrismaService,
         },
       ],
     }).compile();
 
     service = module.get<UsersService>(UsersService);
-    userRepository = module.get<Repository<User>>(getRepositoryToken(User));
+    prismaService = module.get<PrismaService>(PrismaService);
   });
 
   it('should be defined', () => {
@@ -39,55 +38,61 @@ describe('UsersService', () => {
 
   describe('create', () => {
     it('should create a new user', async () => {
-      const username = 'testuser';
-      const password = 'password123';
+      const userData = {
+        username: 'testuser',
+        password: 'password123',
+        email: 'test@example.com',
+      };
       const hashedPassword = 'hashedpassword123';
 
       (bcrypt.hash as jest.Mock).mockResolvedValue(hashedPassword);
 
-      const userData = { username, password: hashedPassword };
-      const savedUser = { id: 1, ...userData };
+      const savedUser = { id: 1, ...userData, password: hashedPassword };
 
-      mockUserRepository.create.mockReturnValue(userData);
-      mockUserRepository.save.mockResolvedValue(savedUser);
+      mockPrismaService.user.create.mockResolvedValue(savedUser);
 
-      const result = await service.create(username, password);
+      const result = await service.create(userData);
 
-      expect(bcrypt.hash).toHaveBeenCalledWith(password, 10);
-      expect(mockUserRepository.create).toHaveBeenCalledWith(userData);
-      expect(mockUserRepository.save).toHaveBeenCalledWith(userData);
+      expect(bcrypt.hash).toHaveBeenCalledWith(userData.password, 10);
+      expect(mockPrismaService.user.create).toHaveBeenCalledWith({
+        data: {
+          ...userData,
+          password: hashedPassword,
+        },
+      });
       expect(result).toEqual(savedUser);
     });
   });
 
   describe('findOne', () => {
     it('should find a user by id', async () => {
-      const userId = 1;
+      const userId = '1';
       const user = {
-        id: userId,
+        id: 1,
         username: 'testuser',
         password: 'hashedpassword',
+        email: 'test@example.com',
       };
 
-      mockUserRepository.findOne.mockResolvedValue(user);
+      mockPrismaService.user.findUnique.mockResolvedValue(user);
 
       const result = await service.findOne(userId);
 
-      expect(mockUserRepository.findOne).toHaveBeenCalledWith({
-        where: { id: userId },
+      expect(mockPrismaService.user.findUnique).toHaveBeenCalledWith({
+        where: { id: 1 },
       });
       expect(result).toEqual(user);
     });
 
     it('should throw NotFoundException if user is not found', async () => {
-      const userId = 999;
+      const userId = '999';
 
-      mockUserRepository.findOne.mockResolvedValue(null);
+      mockPrismaService.user.findUnique.mockResolvedValue(null);
 
       await expect(service.findOne(userId)).rejects.toThrow(NotFoundException);
 
-      expect(mockUserRepository.findOne).toHaveBeenCalledWith({
-        where: { id: userId },
+      expect(mockPrismaService.user.findUnique).toHaveBeenCalledWith({
+        where: { id: 999 },
       });
     });
   });
